@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI News Wallpaper</title>
+<meta name="description" content="Your Windows desktop, updated every hour with the latest AI headlines, trending open-source repos, your calendar and a daily quote.">
+<meta property="og:title" content="AI News Wallpaper">
+<meta property="og:description" content="Your Windows desktop, updated every hour with the latest AI news.">
+<meta property="og:image" content="https://kshivam4781.github.io/ainewswallpaper/screenshot.png">
+<style>
+  :root{
+    --bg-top:#0A0E1A; --bg-bot:#141F38; --accent:#4C8DFF; --accent-soft:#7FB0FF;
+    --title:#F2F6FF; --body:#E4EAF6; --muted:#7E8CA8; --rule:#243350; --card:#111a2e;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:linear-gradient(160deg,var(--bg-top),var(--bg-bot));
+    background-attachment:fixed; color:var(--body); min-height:100vh;
+    font:16px/1.65 "Segoe UI",system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1060px;margin:0 auto;padding:0 24px}
+  .rule{width:64px;height:4px;background:var(--accent);margin-bottom:28px}
+  header{padding:96px 0 56px}
+  h1{font-size:clamp(2.6rem,6vw,4.2rem);line-height:1.05;margin:0 0 18px;color:var(--title);letter-spacing:-.02em}
+  .lede{font-size:clamp(1.05rem,2.2vw,1.3rem);color:var(--muted);max-width:60ch;margin:0 0 36px}
+  h2{font-size:1.6rem;color:var(--title);margin:0 0 8px;letter-spacing:-.01em}
+  h3{font-size:1.05rem;color:var(--title);margin:0 0 6px}
+  section{padding:56px 0;border-top:1px solid var(--rule)}
+  .sub{color:var(--muted);margin:0 0 28px}
+
+  .cmd{
+    display:flex;align-items:center;gap:14px;background:#070b14;border:1px solid var(--rule);
+    border-radius:10px;padding:16px 18px;max-width:640px;margin-bottom:14px;
+  }
+  .cmd code{
+    font:14px/1.5 Consolas,"Cascadia Mono",monospace;color:var(--accent-soft);
+    overflow-x:auto;white-space:nowrap;flex:1
+  }
+  .cmd button{
+    background:var(--accent);color:#04102a;border:0;border-radius:6px;padding:8px 14px;
+    font:600 13px "Segoe UI",sans-serif;cursor:pointer;flex-shrink:0
+  }
+  .cmd button:hover{background:var(--accent-soft)}
+  .hint{color:var(--muted);font-size:.9rem;margin:0 0 28px}
+  .btn{
+    display:inline-block;background:transparent;color:var(--accent-soft);
+    border:1px solid var(--rule);border-radius:8px;padding:12px 22px;
+    text-decoration:none;font-weight:600;font-size:.95rem
+  }
+  .btn:hover{border-color:var(--accent);color:var(--title)}
+
+  figure{margin:0}
+  img{width:100%;border-radius:12px;border:1px solid var(--rule);display:block}
+  figcaption{color:var(--muted);font-size:.85rem;margin-top:12px}
+
+  .grid{display:grid;gap:26px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .card{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:22px}
+  .card p{margin:0;color:var(--muted);font-size:.95rem}
+  .tag{color:var(--accent);font:700 11px "Segoe UI",sans-serif;letter-spacing:.12em;display:block;margin-bottom:10px}
+
+  dl{margin:0}
+  dt{color:var(--title);font-weight:600;margin-top:22px}
+  dd{margin:6px 0 0;color:var(--muted)}
+  a{color:var(--accent-soft)}
+  footer{padding:44px 0 72px;color:var(--muted);font-size:.9rem;border-top:1px solid var(--rule)}
+  .note{border-left:3px solid var(--accent);padding-left:18px;color:var(--muted);max-width:64ch}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <header>
+    <div class="rule"></div>
+    <h1>Your desktop,<br>always current.</h1>
+    <p class="lede">
+      AI News Wallpaper redraws your Windows background every hour with the latest
+      AI headlines, genuinely trending open-source repos, your calendar, and a
+      quote that does not coddle you.
+    </p>
+
+    <div class="cmd">
+      <code id="cmd">irm https://kshivam4781.github.io/ainewswallpaper/install.ps1 | iex</code>
+      <button onclick="copyCmd()" id="copy">Copy</button>
+    </div>
+    <p class="hint">
+      Paste into PowerShell. No Node, no npm, no admin rights &mdash; or
+      <a href="https://github.com/kshivam4781/ainewswallpaper/releases/latest">download the .exe</a>.
+    </p>
+  </header>
+
+  <section>
+    <figure>
+      <img src="screenshot.png" alt="A dark desktop wallpaper laid out in three columns: open-source repos, AI news headlines, and a motivational quote across the bottom.">
+      <figcaption>Real output, rendered at 2560&times;1600. Layout adapts to your display.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <h2>What lands on your screen</h2>
+    <p class="sub">Four panels. Everything except the news is optional.</p>
+    <div class="grid">
+      <div class="card">
+        <span class="tag">AI NEWS</span>
+        <h3>Seven fresh headlines</h3>
+        <p>Pulled from TechCrunch, The Verge, Ars Technica, MIT Technology Review, VentureBeat, Hacker News and Google News &mdash; deduplicated and balanced across sources.</p>
+      </div>
+      <div class="card">
+        <span class="tag">OPEN SOURCE</span>
+        <h3>Repos worth knowing</h3>
+        <p>Three genuinely rising GitHub projects, plus two matched to what you actually work on. Curated link lists are filtered out.</p>
+      </div>
+      <div class="card">
+        <span class="tag">TODAY</span>
+        <h3>Calendar and inbox</h3>
+        <p>Your remaining events all day, and your top unread mail each morning. Entirely opt-in, and off until you connect it.</p>
+      </div>
+      <div class="card">
+        <span class="tag">QUOTE</span>
+        <h3>A daily push</h3>
+        <p>Tyson, Goggins, Jocko, Ali, Marcus Aurelius. Rotates once a day. Bring your own list if you would rather.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Your data stays on your machine</h2>
+    <p class="sub">There is no server. There is nothing to breach.</p>
+    <div class="note">
+      <p>Everything runs locally on your PC. If you link Google, the tool asks for
+      the two narrowest scopes that do the job: <strong>calendar.events.readonly</strong>,
+      and <strong>gmail.metadata</strong> &mdash; message <em>headers only</em>. It cannot
+      read the body of an email or open an attachment, and it cannot send, delete
+      or change anything. Your token is stored on your own disk and revoked with a
+      single command.</p>
+      <p><strong>Worth knowing:</strong> mail that appears on your wallpaper is
+      readable by anyone who sees your screen, including in a screen share. That is
+      the point of the feature &mdash; just choose it deliberately.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Questions</h2>
+    <dl>
+      <dt>Does it need an API key or a subscription?</dt>
+      <dd>No. No keys, no accounts, no AI billing. It reads public RSS feeds and the public GitHub search API.</dd>
+
+      <dt>Does it use AI to write the wallpaper?</dt>
+      <dd>No. It is deterministic code &mdash; feed parsing, filtering and a layout engine. Nothing is generated by a model.</dd>
+
+      <dt>Why is the download around 88 MB?</dt>
+      <dd>The Node runtime is bundled in, so there is nothing else to install. It is one file with no dependencies.</dd>
+
+      <dt>Windows says it protected my PC.</dt>
+      <dd>The binary is not yet code-signed, so SmartScreen warns on first run. Click <strong>More info</strong>, then <strong>Run anyway</strong>.</dd>
+
+      <dt>How do I stop it?</dt>
+      <dd><code>ai-news-wallpaper stop</code> removes the scheduled task. Your current wallpaper stays as it is.</dd>
+
+      <dt>Does it run while my PC is asleep?</dt>
+      <dd>No &mdash; it refreshes while you are logged in, and catches up with one run when you come back.</dd>
+    </dl>
+  </section>
+
+  <section style="border-bottom:1px solid var(--rule)">
+    <h2>Prefer npm?</h2>
+    <p class="sub">If you already have Node 18 or newer.</p>
+    <div class="cmd"><code>npm install -g ai-news-wallpaper &amp;&amp; ai-news-wallpaper start</code></div>
+    <p style="margin-top:26px">
+      <a class="btn" href="https://github.com/kshivam4781/ainewswallpaper">View the source on GitHub</a>
+    </p>
+  </section>
+
+  <footer>
+    MIT licensed &middot; Windows 10 and 11 &middot;
+    <a href="https://github.com/kshivam4781/ainewswallpaper">GitHub</a> &middot;
+    <a href="https://github.com/kshivam4781/ainewswallpaper/issues">Report an issue</a>
+  </footer>
+
+</div>
+
+<script>
+  function copyCmd() {
+    var text = document.getElementById('cmd').textContent.trim();
+    var btn = document.getElementById('copy');
+    navigator.clipboard.writeText(text).then(function () {
+      btn.textContent = 'Copied';
+      setTimeout(function () { btn.textContent = 'Copy'; }, 1600);
+    }).catch(function () {
+      btn.textContent = 'Press Ctrl+C';
+    });
+  }
+</script>
+
+</body>
+</html>

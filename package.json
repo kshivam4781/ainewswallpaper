@@ -10,7 +10,8 @@
   "type": "commonjs",
   "scripts": {
     "update": "node bin/cli.js update",
-    "watch": "node bin/cli.js watch"
+    "watch": "node bin/cli.js watch",
+    "build:exe": "node build.mjs"
   },
   "engines": {
     "node": ">=18"
@@ -31,5 +32,18 @@
     "windows",
     "rss"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "postject": "^1.0.0-alpha.6"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kshivam4781/ainewswallpaper.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kshivam4781/ainewswallpaper/issues"
+  },
+  "homepage": "https://github.com/kshivam4781/ainewswallpaper#readme",
+  "author": "Shivam Singh"
 }

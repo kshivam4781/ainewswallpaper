@@ -12,9 +12,16 @@ const pkg = require('../package.json');
 const NUMBER_FLAGS = new Set(['count', 'interval', 'width', 'height', 'max-age', 'lines', 'trending', 'for-you']);
 
 function parseArgs(argv) {
-  const command = argv[0] && !argv[0].startsWith('-') ? argv[0] : 'update';
+  const first = argv[0] || '';
+  // A bare flag is still a command when it is --version/--help, otherwise
+  // we fall through to the default action.
+  const command = first && !first.startsWith('-')
+    ? first
+    : /^--?(v|version)$/i.test(first) ? 'version'
+      : /^--?(h|help|\?)$/i.test(first) ? 'help'
+        : 'update';
   const flags = {};
-  const rest = argv[0] && !argv[0].startsWith('-') ? argv.slice(1) : argv;
+  const rest = first && !first.startsWith('-') ? argv.slice(1) : argv;
   // e.g. "connect google" - the word after the command, when it is not a flag.
   const target = rest[0] && !rest[0].startsWith('-') ? rest[0] : null;
 

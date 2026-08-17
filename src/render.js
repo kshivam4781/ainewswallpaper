@@ -8,8 +8,8 @@ const { IMAGE_DIR, ensureDirs } = require('./config');
 const { getTheme } = require('./themes');
 const { timeAgo } = require('./feeds');
 const { BULLET } = require('./panels');
+const { renderScriptPath } = require('./runtime');
 
-const SCRIPT_PATH = path.join(__dirname, 'render.ps1');
 const KEEP_IMAGES = 3;
 const EM_DASH = '—';
 
@@ -23,7 +23,7 @@ function runPowerShell(dataPath) {
   return new Promise((resolve, reject) => {
     execFile(
       powershellExe(),
-      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', SCRIPT_PATH, '-DataPath', dataPath],
+      ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', renderScriptPath(), '-DataPath', dataPath],
       { windowsHide: true, timeout: 90000, maxBuffer: 4 * 1024 * 1024 },
       (err, stdout, stderr) => {
         if (err) {

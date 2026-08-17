@@ -21,7 +21,23 @@ down the side and the entry counts shrink to fit. Nothing ever overflows.
 is drawn by .NET `System.Drawing` through PowerShell, so there is nothing to
 compile and no API keys to configure.
 
+![AI News Wallpaper](docs/screenshot.png)
+
 ## Install
+
+**One line, no Node required** — downloads the latest signed-free release,
+adds it to your PATH and starts the hourly refresh:
+
+```powershell
+irm https://kshivam4781.github.io/ainewswallpaper/install.ps1 | iex
+```
+
+Or grab `ai-news-wallpaper.exe` from
+[Releases](https://github.com/kshivam4781/ainewswallpaper/releases/latest).
+The binary is unsigned, so SmartScreen warns on first run — **More info** then
+**Run anyway**.
+
+### With npm
 
 ```bash
 npm install -g ai-news-wallpaper
@@ -337,6 +353,28 @@ accept everything a feed publishes.
   automatically; override it with `--width` / `--height` and `--save`.
 - **Getting your old wallpaper back.** `ai-news-wallpaper stop`, then pick your
   wallpaper again in Settings → Personalization → Background.
+
+## Building the executable
+
+```bash
+npm install
+npm run build:exe
+```
+
+esbuild flattens `bin/cli.js` and every local module into one file, Node's SEA
+config embeds that bundle plus `render.ps1` as an asset, and postject injects the
+result into a copy of `node.exe`. Output: `dist/ai-news-wallpaper.exe` (~88 MB,
+Node runtime included).
+
+Tagging a version builds and publishes it automatically:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+> `src/render.ps1` **must stay pure ASCII** — PowerShell 5.1 reads BOM-less
+> `.ps1` files as ANSI and would mangle anything else. CI fails the build if a
+> non-ASCII byte creeps in.
 
 ## Licence
 

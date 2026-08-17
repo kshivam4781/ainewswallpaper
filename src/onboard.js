@@ -1,7 +1,7 @@
 'use strict';
 
-const readline = require('readline/promises');
-const { stdin, stdout } = require('process');
+const readline = require('node:readline/promises');
+const { stdin, stdout } = require('node:process');
 const { loadConfig, saveConfig } = require('./config');
 const google = require('./google');
 

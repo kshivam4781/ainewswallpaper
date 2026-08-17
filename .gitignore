@@ -1,11 +1,11 @@
 # Dependencies
 node_modules/
-package-lock.json
 npm-debug.log*
 
 # Rendered output — `preview` writes here by default
 ai-news-preview.png
 *.png
+!docs/screenshot.png
 
 # Local runtime state lives in %USERPROFILE%\.ai-news-wallpaper\, never in the
 # repo, but guard against anyone copying it in.
@@ -26,3 +26,5 @@ client_secret*.json
 Thumbs.db
 desktop.ini
 .DS_Store
+dist/
+node_modules/
