@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Rendered output — `preview` writes here by default
+ai-news-preview.png
+*.png
+
+# Local runtime state lives in %USERPROFILE%\.ai-news-wallpaper\, never in the
+# repo, but guard against anyone copying it in.
+config.json
+cache.json
+google-client.json
+google-auth.json
+client_secret*.json
+*.log
+
+# Secrets
+.env
+.env.*
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store

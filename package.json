@@ -1,0 +1,35 @@
+{
+  "name": "ai-news-wallpaper",
+  "version": "1.0.0",
+  "description": "Keeps your Windows desktop wallpaper updated with the latest AI news headlines.",
+  "bin": {
+    "ai-news-wallpaper": "bin/cli.js",
+    "ainews": "bin/cli.js"
+  },
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "update": "node bin/cli.js update",
+    "watch": "node bin/cli.js watch"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "win32"
+  ],
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "keywords": [
+    "wallpaper",
+    "ai",
+    "news",
+    "desktop",
+    "windows",
+    "rss"
+  ],
+  "license": "MIT"
+}
