@@ -257,7 +257,7 @@ $hasNews = @($data.items).Count -gt 0
 
 # On a wide screen every panel earns its own column; otherwise they stack down
 # one side, which fits far fewer entries.
-$columnsMode = $hasTools -and $panels.Count -ge 2 -and $W -ge 2000 -and (($W / $H) -ge 1.45)
+$columnsMode = $hasTools -and $panels.Count -ge 2 -and $W -ge 1800 -and (($W / $H) -ge 1.45)
 
 $panelX = @()
 $panelW = @()

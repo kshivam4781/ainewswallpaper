@@ -144,8 +144,10 @@ async function refresh(overrides = {}, options = {}) {
       ...options,
       // Applying is a separate step so multi-monitor can target each display.
       setWallpaper: false,
-      width: entry.monitor.width || config.width,
-      height: entry.monitor.height || config.height,
+      // An explicit --width/--height wins: it is documented as forcing the
+      // canvas size, so the detected monitor must not override it.
+      width: config.width || entry.monitor.width,
+      height: config.height || entry.monitor.height,
       panels: content.panels,
       // One quote across the desktop, on the primary screen only.
       quote: entry.index === 0 ? quote : null,
