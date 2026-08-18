@@ -54,6 +54,11 @@ function overridesFrom(flags) {
   if (typeof flags.theme === 'string') out.theme = flags.theme;
   if (typeof flags.align === 'string') out.align = flags.align;
 
+  const screens = {};
+  if (typeof flags.screens === 'string') screens.mode = flags.screens;
+  if (flags['no-screens'] === true) screens.enabled = false;
+  if (Object.keys(screens).length) out.screens = screens;
+
   const quotes = {};
   if (flags['no-quote'] === true) quotes.enabled = false;
   if (flags.quote === true) quotes.enabled = true;
@@ -76,6 +81,10 @@ function validate(overrides) {
   }
   if (overrides.align && !['left', 'center', 'right'].includes(overrides.align)) {
     throw new Error(`Unknown align "${overrides.align}". Use left, center or right.`);
+  }
+  if (overrides.screens && overrides.screens.mode &&
+      !['auto', 'mirror', 'single'].includes(overrides.screens.mode)) {
+    throw new Error(`Unknown screens mode "${overrides.screens.mode}". Use auto, mirror or single.`);
   }
 }
 
@@ -100,6 +109,7 @@ Commands
   config              Show or change saved settings
   headlines           Print the headlines that would be used
   tools               Show the inferred interests and the repos that would show
+  screens             Show the detected displays and what each will show
   log                 Show the last lines of the activity log
   help                Show this message
 
@@ -114,6 +124,7 @@ Options
   --for-you <n>       Repos matched to your work from session history (default 2)
   --no-tools          Hide the open-source panel entirely
   --rescan            With "tools", rebuild the interest profile from scratch
+  --screens <mode>    auto | mirror | single - how to use multiple displays
   --no-quote          Hide the quote band and give the space back to the columns
   --rotate <when>     daily | hourly - how often the quote changes
   --list              With "quote", print the whole pool
@@ -225,6 +236,14 @@ async function cmdStatus() {
   console.log(`  Theme        ${config.theme}, aligned ${config.align}`);
   console.log(`  Feeds        ${config.feeds.length}`);
 
+  try {
+    const { detectScreens } = require('../src/screens');
+    const displays = await detectScreens();
+    const n = displays.monitors.length;
+    console.log(`  Displays     ${n} (${displays.monitors.map((m) => `${m.width}x${m.height}`).join(', ')})` +
+      `${n > 1 ? `, mode ${config.screens.mode}` : ''}${displays.perMonitor ? '' : ' — single wallpaper only'}`);
+  } catch { /* status must not fail on display detection */ }
+
   const info = require('../src/google').connectionInfo();
   const who = config.profile && config.profile.name ? config.profile.name : '(not set — run: setup)';
   console.log(`  Registered   ${who}${config.profile && config.profile.email ? ` <${config.profile.email}>` : ''}`);
@@ -278,6 +297,55 @@ async function cmdHeadlines(flags) {
   if (news.failures.length) {
     console.log('\nUnavailable feeds:');
     news.failures.forEach((f) => console.log(`  ${f.feed}: ${f.error}`));
+  }
+}
+
+const ROLE_TEXT = {
+  'all': 'everything together',
+  'news': 'AI headlines',
+  'news-more': 'more headlines (page 2)',
+  'tools': 'open-source repos',
+  'today': 'calendar + unread mail',
+  'panels': 'repos + calendar/mail'
+};
+
+async function cmdScreens(flags) {
+  const { detectScreens, planScreens } = require('../src/screens');
+  const { collectRepos } = require('../src/github');
+  const google = require('../src/google');
+  const config = loadConfig();
+
+  const displays = await detectScreens({ fresh: true });
+  console.log(`
+${displays.monitors.length} display(s) detected` +
+    `${displays.perMonitor ? '' : '  (per-monitor wallpaper NOT available)'}`);
+  if (displays.error) console.log(`  detection warning: ${displays.error}`);
+
+  displays.monitors.forEach((m, i) => {
+    console.log(`  ${i + 1}. ${m.width}x${m.height} at (${m.x},${m.y})${m.primary ? '  [primary]' : ''}`);
+  });
+
+  // What the planner would do given what is actually available right now.
+  const hasRepos = config.tools.enabled !== false;
+  const hasBrief = google.isConnected();
+  const plan = planScreens(displays.monitors, {
+    hasRepos, hasBrief, mode: config.screens.mode, assign: config.screens.assign
+  });
+
+  console.log(`
+Plan (mode: ${config.screens.mode}):`);
+  plan.forEach((entry) => {
+    console.log(`  Screen ${entry.index + 1}  ->  ${entry.role.padEnd(10)} ${ROLE_TEXT[entry.role] || ''}`);
+  });
+
+  if (!hasBrief) console.log('\nGoogle is not connected, so there is no calendar/mail screen to assign.');
+  if (displays.monitors.length === 1) {
+    console.log('\nWith one display everything shares the screen. Attach another and');
+    console.log('  the content spreads out automatically on the next refresh.');
+  }
+  if (!displays.perMonitor && displays.monitors.length > 1) {
+    console.log('\nWindows is not exposing per-monitor wallpapers here, so a single');
+    console.log('  image is used for the whole desktop.');
   }
 }
 
@@ -443,6 +511,7 @@ async function main() {
       case 'disconnect': case 'unlink': await cmdDisconnect(target); break;
       case 'brief': case 'mail': case 'agenda': await cmdBrief(flags); break;
       case 'quote': case 'quotes': cmdQuote(flags); break;
+      case 'screens': case 'displays': case 'monitors': await cmdScreens(flags); break;
       case 'watch': await cmdWatch(flags); break;
       case 'start': case 'install': await cmdStart(flags); break;
       case 'stop': case 'uninstall': await cmdStop(); break;

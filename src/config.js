@@ -46,6 +46,17 @@ const DEFAULTS = {
   // Leave empty to infer interests from session history. Otherwise a list of
   // strings or { label, query } objects used as GitHub search queries.
   interests: [],
+  // Multi-monitor behaviour.
+  screens: {
+    enabled: true,
+    // auto   spread the content out, one kind per screen
+    // mirror the same wallpaper everywhere
+    // single treat the setup as one display (legacy behaviour)
+    mode: 'auto',
+    // Optional manual override, one role per screen in Windows' order:
+    // "news", "news-more", "tools", "today", "panels", "all"
+    assign: []
+  },
   // Full-width quote band along the bottom.
   quotes: {
     enabled: true,

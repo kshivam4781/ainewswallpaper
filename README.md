@@ -97,6 +97,7 @@ ai-news-wallpaper stop
 | `config` | Show or change saved settings |
 | `headlines` | Print the headlines that would be used |
 | `tools` | Show the inferred interests and the repos that would be shown |
+| `screens` | Show the detected displays and what each will show |
 | `log` | Show recent activity |
 
 ## Options
@@ -282,6 +283,53 @@ under `google` in `config.json`:
 
 Set `alwaysShowMail` to `true` to show unread mail around the clock, or
 `enabled` to `false` to keep the account linked but hide the panel.
+
+## Multiple monitors
+
+Attach a second or third display and the content spreads out on the next
+refresh — no configuration needed.
+
+```bash
+ai-news-wallpaper screens
+```
+
+| Displays | What each one shows |
+| --- | --- |
+| 1 | everything together, as before |
+| 2 | headlines &middot; repos + calendar/mail |
+| 3 | headlines &middot; repos &middot; calendar/mail |
+| 4+ | as above, then a second page of headlines |
+
+A screen dedicated to headlines shows up to 14 of them in a wide single column
+rather than the seven it shares elsewhere, and extra screens page through
+different stories instead of repeating the first. The quote band appears once,
+on the primary screen.
+
+Per-monitor wallpapers use the `IDesktopWallpaper` COM interface (Windows 8+).
+`SystemParametersInfo`, the classic API, can only set one image for the whole
+desktop — if COM is unavailable the tool falls back to a single wallpaper and
+says so in `screens`.
+
+Change the behaviour with `--screens <mode>` or the `screens` block in
+`config.json`:
+
+| Mode | Effect |
+| --- | --- |
+| `auto` | spread the content out (default) |
+| `mirror` | the same full wallpaper on every screen |
+| `single` | treat the setup as one display |
+
+To pin content to particular screens, list roles in Windows' own monitor order:
+
+```json
+{
+  "screens": {
+    "assign": ["today", "news", "tools"]
+  }
+}
+```
+
+Valid roles: `news`, `news-more`, `tools`, `today`, `panels`, `all`.
 
 ## Motivational quotes
 

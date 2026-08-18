@@ -54,15 +54,21 @@ function nextImagePath(now) {
   return path.join(IMAGE_DIR, `ai-news-${stamp}.png`);
 }
 
-function pruneOldImages(keepPath) {
+/**
+ * Drops old renders, never the ones in `keep`. Every image currently applied to
+ * a monitor must survive: deleting one blanks that monitor's wallpaper, which
+ * is exactly what happens on a multi-screen refresh if you prune per render.
+ */
+function pruneOldImages(keep = []) {
+  const keepSet = new Set(keep.filter(Boolean));
   try {
     const files = fs.readdirSync(IMAGE_DIR)
       .filter((f) => f.startsWith('ai-news-') && f.endsWith('.png'))
       .map((f) => path.join(IMAGE_DIR, f))
-      .filter((f) => f !== keepPath)
+      .filter((f) => !keepSet.has(f))
       .sort();
-    const stale = files.slice(0, Math.max(0, files.length - (KEEP_IMAGES - 1)));
-    for (const file of stale) {
+    const budget = Math.max(0, KEEP_IMAGES * Math.max(1, keepSet.size) - keepSet.size);
+    for (const file of files.slice(0, Math.max(0, files.length - budget))) {
       try { fs.unlinkSync(file); } catch { /* still in use by the shell, skip */ }
     }
   } catch { /* image dir missing, nothing to prune */ }
@@ -79,8 +85,8 @@ async function renderWallpaper(items, config, options = {}) {
 
   const payload = {
     outputPath: imagePath,
-    width: config.width || null,
-    height: config.height || null,
+    width: options.width || config.width || null,
+    height: options.height || config.height || null,
     align: config.align || 'right',
     heading: 'AI NEWS',
     subheading: formatSubheading(now),
@@ -112,11 +118,10 @@ async function renderWallpaper(items, config, options = {}) {
     const line = stdout.split(/\r?\n/).find((l) => l.startsWith('RENDER_OK|'));
     if (!line) throw new Error(`Renderer produced no image. Output: ${stdout.trim() || '(empty)'}`);
     const [, out, width, height, shown] = line.split('|');
-    pruneOldImages(out);
     return { imagePath: out, width: Number(width), height: Number(height), shown: Number(shown) };
   } finally {
     try { fs.unlinkSync(dataPath); } catch { /* best effort */ }
   }
 }
 
-module.exports = { renderWallpaper };
+module.exports = { renderWallpaper, pruneOldImages };

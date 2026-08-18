@@ -20,7 +20,10 @@
     would mangle any non-ASCII literal. All display text arrives via JSON.
 #>
 param(
-    [Parameter(Mandatory = $true)][string]$DataPath
+    [string]$DataPath,
+    [switch]$Detect,       # print the attached monitors as JSON and exit
+    [string]$ApplyPath,    # set this image as the wallpaper and exit
+    [string]$MonitorId     # with -ApplyPath, target one monitor
 )
 
 $ErrorActionPreference = 'Stop'
@@ -30,15 +33,123 @@ Add-Type -AssemblyName System.Windows.Forms
 if (-not ([System.Management.Automation.PSTypeName]'AiNewsWallpaperNative').Type) {
     Add-Type -TypeDefinition @'
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+
 public class AiNewsWallpaperNative {
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
     [DllImport("user32.dll")]
     public static extern bool SetProcessDPIAware();
 }
+
+// Windows 8+ per-monitor wallpaper. SystemParametersInfo can only set one
+// image for the whole desktop, so anything multi-screen has to come through
+// this interface.
+[ComImport, Guid("B92B56A9-8B55-4E14-9A89-0199BBB6F93B"),
+ InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+interface IDesktopWallpaper {
+    void SetWallpaper([MarshalAs(UnmanagedType.LPWStr)] string monitorID,
+                      [MarshalAs(UnmanagedType.LPWStr)] string wallpaper);
+    [return: MarshalAs(UnmanagedType.LPWStr)]
+    string GetWallpaper([MarshalAs(UnmanagedType.LPWStr)] string monitorID);
+    [return: MarshalAs(UnmanagedType.LPWStr)]
+    string GetMonitorDevicePathAt(uint monitorIndex);
+    uint GetMonitorDevicePathCount();
+    DwRect GetMonitorRECT([MarshalAs(UnmanagedType.LPWStr)] string monitorID);
+    void SetBackgroundColor(uint color);
+    uint GetBackgroundColor();
+    void SetPosition(int position);
+    int GetPosition();
+}
+
+[StructLayout(LayoutKind.Sequential)]
+struct DwRect { public int Left, Top, Right, Bottom; }
+
+// Every COM call stays inside C#: PowerShell re-wraps the RCW as a late-bound
+// __ComObject and loses the interface, so the methods become invisible there.
+public static class AiNewsMonitors {
+    static IDesktopWallpaper New() {
+        return (IDesktopWallpaper)Activator.CreateInstance(
+            Type.GetTypeFromCLSID(new Guid("C2CF3110-460E-4FC1-B9D0-8A1C0C9CC4BD")));
+    }
+
+    /// One tab-separated record per attached monitor: id, left, top, width, height.
+    public static string[] List() {
+        var dw = New();
+        var found = new List<string>();
+        uint count = dw.GetMonitorDevicePathCount();
+        for (uint i = 0; i < count; i++) {
+            string id = dw.GetMonitorDevicePathAt(i);
+            if (string.IsNullOrEmpty(id)) continue;
+            try {
+                DwRect r = dw.GetMonitorRECT(id);   // throws when detached
+                int w = r.Right - r.Left, h = r.Bottom - r.Top;
+                if (w <= 0 || h <= 0) continue;
+                found.Add(string.Join("	", id, r.Left.ToString(), r.Top.ToString(),
+                                      w.ToString(), h.ToString()));
+            } catch { }
+        }
+        return found.ToArray();
+    }
+
+    public static void Set(string monitorId, string path) { New().SetWallpaper(monitorId, path); }
+    public static void SetFill() { New().SetPosition(4); }   // DWPOS_FILL
+}
 '@
 }
+
+[void][AiNewsWallpaperNative]::SetProcessDPIAware()
+
+# --- Mode: detect ------------------------------------------------------------
+if ($Detect) {
+    $monitors = New-Object System.Collections.ArrayList
+    $perMonitor = $false
+    try {
+        foreach ($record in [AiNewsMonitors]::List()) {
+            $f = $record -split "`t"
+            [void]$monitors.Add([pscustomobject]@{
+                id = $f[0]; x = [int]$f[1]; y = [int]$f[2]
+                width = [int]$f[3]; height = [int]$f[4]
+                primary = ([int]$f[1] -eq 0 -and [int]$f[2] -eq 0)
+            })
+        }
+        $perMonitor = $monitors.Count -gt 0
+    } catch { $perMonitor = $false }
+
+    if (-not $perMonitor) {
+        Add-Type -AssemblyName System.Windows.Forms
+        try {
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            [void]$monitors.Add([pscustomobject]@{
+                id = ''; x = $b.X; y = $b.Y; width = $b.Width; height = $b.Height; primary = $true })
+        } catch {
+            [void]$monitors.Add([pscustomobject]@{
+                id = ''; x = 0; y = 0; width = 1920; height = 1080; primary = $true })
+        }
+    }
+    @{ perMonitor = $perMonitor; monitors = @($monitors) } | ConvertTo-Json -Depth 4 -Compress
+    exit 0
+}
+
+# --- Mode: apply -------------------------------------------------------------
+if ($ApplyPath) {
+    if (-not (Test-Path -LiteralPath $ApplyPath)) { throw "No such image: $ApplyPath" }
+    Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name WallpaperStyle -Value '10'
+    Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name TileWallpaper -Value '0'
+
+    if ($MonitorId) {
+        [AiNewsMonitors]::Set($MonitorId, $ApplyPath)
+        [AiNewsMonitors]::SetFill()
+    } else {
+        $r = [AiNewsWallpaperNative]::SystemParametersInfo(20, 0, $ApplyPath, (0x01 -bor 0x02))
+        if ($r -eq 0) { throw "SystemParametersInfo failed (win32 $([System.Runtime.InteropServices.Marshal]::GetLastWin32Error()))" }
+    }
+    Write-Output "APPLY_OK"
+    exit 0
+}
+
+if (-not $DataPath) { throw 'Pass -DataPath, -Detect, or -ApplyPath.' }
 
 $data = [System.IO.File]::ReadAllText($DataPath, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
 $theme = $data.theme
@@ -60,7 +171,6 @@ function New-Font {
 }
 
 # --- Canvas size -------------------------------------------------------------
-[void][AiNewsWallpaperNative]::SetProcessDPIAware()
 $W = 0; $H = 0
 if ($data.width) { $W = [int]$data.width }
 if ($data.height) { $H = [int]$data.height }
@@ -141,6 +251,10 @@ $panels = @()
 if ($data.panels) { $panels = @($data.panels) }
 $hasTools = $panels.Count -gt 0
 
+# A screen can carry panels only (multi-monitor setups give each screen its own
+# content), in which case there is no headline column to lay out around.
+$hasNews = @($data.items).Count -gt 0
+
 # On a wide screen every panel earns its own column; otherwise they stack down
 # one side, which fits far fewer entries.
 $columnsMode = $hasTools -and $panels.Count -ge 2 -and $W -ge 2000 -and (($W / $H) -ge 1.45)
@@ -148,7 +262,32 @@ $columnsMode = $hasTools -and $panels.Count -ge 2 -and $W -ge 2000 -and (($W / $
 $panelX = @()
 $panelW = @()
 
-if ($columnsMode) {
+if (-not $hasNews -and $hasTools) {
+    # Panels own the whole screen. Side by side when there is room, else stacked.
+    $margin = [int][Math]::Round($W * 0.055)
+    $available = $W - 2 * $margin
+    $colX = 0
+    $colW = 0
+    $sideBySide = $panels.Count -ge 2 -and ($available / $panels.Count) -ge 520
+    $columnsMode = $sideBySide
+    if ($sideBySide) {
+        $gap = [int][Math]::Round($available * 0.055)
+        $each = [int](($available - $gap * ($panels.Count - 1)) / $panels.Count)
+        $cursor = $margin
+        for ($p = 0; $p -lt $panels.Count; $p++) {
+            $panelX += $cursor
+            $panelW += $each
+            $cursor += $each + $gap
+        }
+    } else {
+        $each = [int][Math]::Min($available, 1100)
+        $sideX = [int](($W - $each) / 2)
+        for ($p = 0; $p -lt $panels.Count; $p++) {
+            $panelX += $sideX
+            $panelW += $each
+        }
+    }
+} elseif ($columnsMode) {
     $margin = [int][Math]::Round($W * 0.045)
     $available = $W - 2 * $margin
     $gap = [int][Math]::Round($available * 0.035)
@@ -186,7 +325,12 @@ if ($columnsMode) {
 } else {
     $margin = [int][Math]::Round($W * 0.055)
     $available = $W - 2 * $margin
-    $colW = [int][Math]::Min([Math]::Round($W * 0.46), 1000)
+    if ($hasNews -and -not $hasTools) {
+        # Headlines own the screen: go wide so most titles sit on one line.
+        $colW = [int][Math]::Min([Math]::Round($available * 0.78), 1800)
+    } else {
+        $colW = [int][Math]::Min([Math]::Round($W * 0.46), 1000)
+    }
     $colW = [int][Math]::Max($colW, [Math]::Min(520, $available))
     switch ($data.align) {
         'left'   { $colX = $margin }
@@ -196,9 +340,10 @@ if ($columnsMode) {
 }
 
 # Glow behind the headline column
-$glowR = [int]($colW * 0.95)
+$glowR = if ($colW -gt 0) { [int]($colW * 0.95) } else { [int]($W * 0.45) }
+$glowCX = if ($colW -gt 0) { $colX + $colW / 2 } else { $W / 2 }
 $glowPath = New-Object System.Drawing.Drawing2D.GraphicsPath
-$glowPath.AddEllipse(($colX + $colW / 2 - $glowR), ($H / 2 - $glowR), ($glowR * 2), ($glowR * 2))
+$glowPath.AddEllipse(($glowCX - $glowR), ($H / 2 - $glowR), ($glowR * 2), ($glowR * 2))
 $glowBrush = New-Object System.Drawing.Drawing2D.PathGradientBrush($glowPath)
 $glowBrush.CenterColor = (Get-Color $theme.glow 120)
 $glowBrush.SurroundColors = @((Get-Color $theme.glow 0))
@@ -209,13 +354,15 @@ $glowPath.Dispose()
 # --- Measure the headline column ---------------------------------------------
 $items = @($data.items)
 $scale = 1.0
+$total = 0.0
+$layout = New-Object System.Collections.ArrayList
 
 # The quote band owns a strip along the bottom, so the columns get what is left.
 $hasQuote = $data.quote -and $data.quote.text
 $quoteBand = if ($hasQuote) { $H * 0.135 } else { 0.0 }
 $maxHeight = $H - (2 * [int]($H * 0.09)) - $quoteBand
 
-for ($attempt = 0; $attempt -lt 14; $attempt++) {
+for ($attempt = 0; ($attempt -lt 14) -and $hasNews; $attempt++) {
     $fTitle     = New-Font 'Segoe UI' ([Math]::Round($H * 0.052 * $scale)) ([System.Drawing.FontStyle]::Bold)
     $fSub       = New-Font 'Segoe UI' ([Math]::Round($H * 0.0175 * $scale))
     $fHeadline  = New-Font 'Segoe UI Semibold' ([Math]::Round($H * 0.0235 * $scale)) ([System.Drawing.FontStyle]::Bold)
@@ -246,7 +393,9 @@ for ($attempt = 0; $attempt -lt 14; $attempt++) {
 
     if ($total -le $maxHeight) { break }
 
-    if ($scale -gt 0.78) {
+    # A dedicated headline screen would rather set smaller type than drop news.
+    $scaleFloor = if ($hasTools) { 0.78 } else { 0.62 }
+    if ($scale -gt $scaleFloor) {
         $scale = $scale * 0.94
     } elseif ($items.Count -gt 3) {
         $items = $items[0..($items.Count - 2)]
@@ -354,6 +503,7 @@ $top = [double](($H - $quoteBand - [Math]::Max($total, $toolsTotal)) / 2)
 if ($top -lt $H * 0.06) { $top = $H * 0.06 }
 $y = $top
 
+if ($hasNews) {
 $g.FillRectangle($brAccent, [single]$colX, [single]$y, [single]($H * 0.075), [single][Math]::Max(3, $H * 0.0045))
 $y += $H * 0.010 + $H * 0.006
 
@@ -387,6 +537,7 @@ $y = $y - $itemGap + $H * 0.030
 $g.DrawLine($penRule, [single]$colX, [single]$y, [single]($colX + $colW), [single]$y)
 $y += $H * 0.012
 $g.DrawString(($data.footer -f $layout.Count), $fFooter, $brMuted, [single]$colX, [single]$y, $fmt)
+}
 
 # --- Draw the panels ---------------------------------------------------------
 if ($hasTools) {
@@ -438,8 +589,8 @@ if ($hasTools) {
 # --- Draw the quote band -----------------------------------------------------
 if ($hasQuote) {
     # Span from the leftmost column to the right edge of the headline column.
-    $bandLeft = $colX
-    $bandRight = $colX + $colW
+    $bandLeft = if ($hasNews) { $colX } else { [int]$panelX[0] }
+    $bandRight = if ($hasNews) { $colX + $colW } else { [int]($panelX[0] + $panelW[0]) }
     foreach ($px in $panelX) {
         if ($px -lt $bandLeft) { $bandLeft = $px }
     }
