@@ -15,7 +15,9 @@ const THEMES = {
     body: '#E4EAF6',
     muted: '#7E8CA8',
     rule: '#243350',
-    dot: '#1B2740'
+    dot: '#1B2740',
+    up: '#3DD68C',
+    down: '#FF6B6B'
   },
   carbon: {
     bgTop: '#0B0B0C',
@@ -27,7 +29,9 @@ const THEMES = {
     body: '#EDE7E1',
     muted: '#8C837B',
     rule: '#2E2A26',
-    dot: '#211D1A'
+    dot: '#211D1A',
+    up: '#5FD48A',
+    down: '#FF7A5C'
   },
   slate: {
     bgTop: '#101418',
@@ -39,7 +43,9 @@ const THEMES = {
     body: '#E2EAEA',
     muted: '#7C8B8E',
     rule: '#26333A',
-    dot: '#1A2429'
+    dot: '#1A2429',
+    up: '#4ADE9B',
+    down: '#FF7C7C'
   },
   daylight: {
     bgTop: '#F7F9FC',
@@ -51,7 +57,9 @@ const THEMES = {
     body: '#1E293B',
     muted: '#64748B',
     rule: '#CBD5E1',
-    dot: '#DCE4F0'
+    dot: '#DCE4F0',
+    up: '#0F9D58',
+    down: '#D93025'
   }
 };
 

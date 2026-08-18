@@ -9,6 +9,7 @@ const { buildPanels, briefRequest } = require('./panels');
 const { pickQuote } = require('./quotes');
 const { renderWallpaper, pruneOldImages } = require('./render');
 const { detectScreens, applyWallpaper, planScreens } = require('./screens');
+const { collectExtras } = require('./sources');
 
 function log(message) {
   try {
@@ -21,26 +22,42 @@ function log(message) {
  * Splits the fetched content across the screens according to each one's role.
  * A screen with no headlines renders its panels across the full width.
  */
-function contentForScreen(role, { items, panels, perScreenNews, page = 0 }) {
-  const toolsPanel = panels.find((p) => p.heading === 'OPEN SOURCE');
-  const todayPanel = panels.find((p) => p.heading === 'TODAY');
+function contentForScreen(entry, { items, panels, perScreenNews, page = 0 }) {
+  const wanted = entry.blocks || [];
+  const chosen = wanted.length
+    ? wanted.map((h) => panels.find((p) => p.heading === h)).filter(Boolean)
+    : [];
 
-  switch (role) {
+  switch (entry.role) {
     case 'news':
     case 'news-more':
       // Each headline screen takes the next page, so two of them never show
       // the same stories.
       return { items: items.slice(page * perScreenNews, (page + 1) * perScreenNews), panels: [] };
-    case 'tools':
-      return { items: [], panels: toolsPanel ? [toolsPanel] : [] };
-    case 'today':
-      return { items: [], panels: todayPanel ? [todayPanel] : [] };
     case 'panels':
-      return { items: [], panels };
+      return { items: [], panels: chosen };
     case 'all':
     default:
-      return { items: items.slice(0, perScreenNews), panels };
+      return { items: items.slice(0, perScreenNews), panels: chosen };
   }
+}
+
+/**
+ * Which extra sources this run should fetch. arXiv papers are always on; the
+ * rest unlock as screens are added, because a single display has nowhere to
+ * put them.
+ */
+function extrasFor(screenCount, config) {
+  const wanted = [];
+  if ((config.arxiv || {}).enabled !== false) wanted.push('papers');
+  if (screenCount >= 2) {
+    if ((config.markets || {}).enabled !== false) wanted.push('markets');
+    if ((config.weather || {}).enabled !== false) wanted.push('weather');
+  }
+  if (screenCount >= 3 && (config.filler || {}).enabled !== false) {
+    wanted.push((config.filler || {}).source === 'onThisDay' ? 'onThisDay' : 'hackerNews');
+  }
+  return wanted;
 }
 
 /**
@@ -55,7 +72,11 @@ async function refresh(overrides = {}, options = {}) {
     tools: { ...base.tools, ...(overrides.tools || {}) },
     google: { ...base.google, ...(overrides.google || {}) },
     quotes: { ...base.quotes, ...(overrides.quotes || {}) },
-    screens: { ...base.screens, ...(overrides.screens || {}) }
+    screens: { ...base.screens, ...(overrides.screens || {}) },
+    arxiv: { ...base.arxiv, ...(overrides.arxiv || {}) },
+    markets: { ...base.markets, ...(overrides.markets || {}) },
+    weather: { ...base.weather, ...(overrides.weather || {}) },
+    filler: { ...base.filler, ...(overrides.filler || {}) }
   };
   const toolsEnabled = config.tools.enabled !== false;
   const now = new Date();
@@ -70,11 +91,14 @@ async function refresh(overrides = {}, options = {}) {
 
   // The side panels are a bonus: if GitHub or Google is unreachable the
   // headlines still render.
-  const [news, tools, brief] = await Promise.all([
+  const [news, tools, brief, extras] = await Promise.all([
     collectHeadlines({ ...config, count: headlineBudget }),
     toolsEnabled ? collectRepos(config).catch((err) => ({ repos: [], error: err.message })) : Promise.resolve({ repos: [] }),
-    fetchBrief(briefRequest(config, now)).catch((err) => ({ connected: false, errors: [err.message] }))
+    fetchBrief(briefRequest(config, now)).catch((err) => ({ connected: false, errors: [err.message] })),
+    collectExtras(config, extrasFor(screenCount, config), now).catch(() => ({ warnings: [] }))
   ]);
+
+  if (extras.warnings && extras.warnings.length) log(`WARN  sources: ${extras.warnings.join('; ')}`);
 
   if (tools.error) log(`WARN  github: ${tools.error}${tools.stale ? ' (showing cached repos)' : ''}`);
   if (brief.errors && brief.errors.length) log(`WARN  google: ${brief.errors.join('; ')}`);
@@ -89,16 +113,19 @@ async function refresh(overrides = {}, options = {}) {
     throw error;
   }
 
-  const panels = buildPanels({ repos: tools.repos, brief, config, now });
+  const panels = buildPanels({ repos: tools.repos, brief, extras, config, now });
   const quote = pickQuote(config, now);
 
+  // Panels in priority order, filtered to the ones that actually have content.
+  const blocks = panels.map((p) => p.heading);
+  const hourSeed = Math.floor(now.getTime() / 3600000);
   const plan = config.screens.enabled === false
-    ? [{ monitor: displays.monitors[0], role: 'all', index: 0 }]
+    ? planScreens([displays.monitors[0]], { blocks, mode: 'single', seed: hourSeed })
     : planScreens(displays.monitors, {
-      hasRepos: Boolean(panels.find((p) => p.heading === 'OPEN SOURCE')),
-      hasBrief: Boolean(panels.find((p) => p.heading === 'TODAY')),
+      blocks,
       mode: config.screens.mode,
-      assign: config.screens.assign
+      assign: config.screens.assign,
+      seed: hourSeed
     });
 
   const perMonitor = plan.length > 1 && displays.perMonitor;
@@ -107,7 +134,7 @@ async function refresh(overrides = {}, options = {}) {
   let newsPage = 0;
   for (const entry of plan) {
     const isNews = entry.role === 'news' || entry.role === 'news-more';
-    const content = contentForScreen(entry.role, {
+    const content = contentForScreen(entry, {
       items: news.items, panels, perScreenNews, page: isNews ? newsPage : 0
     });
     if (isNews) newsPage++;
@@ -128,7 +155,7 @@ async function refresh(overrides = {}, options = {}) {
     if (options.setWallpaper !== false) {
       await applyWallpaper(result.imagePath, perMonitor ? entry.monitor.id : null);
     }
-    rendered.push({ ...result, role: entry.role, monitor: entry.monitor });
+    rendered.push({ ...result, role: entry.role, blocks: entry.blocks || [], monitor: entry.monitor });
 
     // Without per-monitor support there is only one wallpaper to set.
     if (!perMonitor && options.setWallpaper !== false) break;
@@ -137,7 +164,8 @@ async function refresh(overrides = {}, options = {}) {
   // Prune only once every screen has its image, so nothing in use is deleted.
   pruneOldImages(rendered.map((r) => r.imagePath));
 
-  const summary = rendered.map((r) => `${r.role}@${r.width}x${r.height}`).join(' ');
+  const summary = rendered.map((r) =>
+    `${r.role}${r.blocks && r.blocks.length ? `(${r.blocks.join('+')})` : ''}@${r.width}x${r.height}`).join(' ');
   log(`OK    ${rendered.length} screen(s): ${summary}${perMonitor ? ' [per-monitor]' : ''}`);
   if (news.failures.length) {
     log(`WARN  feeds unavailable: ${news.failures.map((f) => `${f.feed} (${f.error})`).join(', ')}`);
@@ -156,6 +184,7 @@ async function refresh(overrides = {}, options = {}) {
     repos: tools.repos,
     profile: tools.profile,
     brief,
+    extras,
     panels,
     quote,
     config

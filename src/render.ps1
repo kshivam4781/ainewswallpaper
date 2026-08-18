@@ -438,13 +438,19 @@ if ($hasTools) {
             $blocks = New-Object System.Collections.ArrayList
             $height = $headH
             foreach ($entry in $entries) {
+                # Titles wrap as well as descriptions: repo names are short, but
+                # paper titles are long and used to run into the next column.
+                $nameLines = Get-WrappedLines $entry.title $fEntryName $panelW[$p] 2
+                if ($nameLines.Count -eq 0) { $nameLines = @($entry.title) }
                 $descLines = Get-WrappedLines $entry.description $fEntryDesc $panelW[$p] 2
-                $blockH = $fTag.Height + ($H * 0.003) + $fEntryName.Height + ($H * 0.004)
+
+                $blockH = $fTag.Height + ($H * 0.003)
+                $blockH += ($nameLines.Count * $fEntryName.Height) + (($nameLines.Count - 1) * $descGap) + ($H * 0.004)
                 if ($descLines.Count -gt 0) {
                     $blockH += ($descLines.Count * $fEntryDesc.Height) + (($descLines.Count - 1) * $descGap) + ($H * 0.004)
                 }
                 $blockH += $fEntryMeta.Height
-                [void]$blocks.Add([pscustomobject]@{ Entry = $entry; Desc = $descLines; Height = $blockH })
+                [void]$blocks.Add([pscustomobject]@{ Entry = $entry; Name = $nameLines; Desc = $descLines; Height = $blockH })
                 $height += $blockH + $entryGap
             }
             if ($blocks.Count -gt 0) { $height -= $entryGap }
@@ -495,6 +501,11 @@ $brBody   = New-Object System.Drawing.SolidBrush((Get-Color $theme.body))
 $brMuted  = New-Object System.Drawing.SolidBrush((Get-Color $theme.muted))
 $brAccent = New-Object System.Drawing.SolidBrush((Get-Color $theme.accent))
 $brSoft   = New-Object System.Drawing.SolidBrush((Get-Color $theme.accentSoft))
+# Gain/loss colours fall back to the accent on themes that predate them.
+$upHex    = if ($theme.up) { $theme.up } else { $theme.accent }
+$downHex  = if ($theme.down) { $theme.down } else { $theme.muted }
+$brUp     = New-Object System.Drawing.SolidBrush((Get-Color $upHex))
+$brDown   = New-Object System.Drawing.SolidBrush((Get-Color $downHex))
 $penRule  = New-Object System.Drawing.Pen((Get-Color $theme.rule), 1.0)
 
 # Every column starts on the same line, and the tallest one decides the top.
@@ -563,12 +574,20 @@ if ($hasTools) {
         foreach ($block in $section.Blocks) {
             # Accent-tagged entries (important mail, upcoming events, "FOR YOU"
             # repos) stand out from the routine ones.
-            $tagBrush = if ($block.Entry.tagStyle -eq 'accent') { $brAccent } else { $brMuted }
+            $tagBrush = switch ($block.Entry.tagStyle) {
+                'accent' { $brAccent }
+                'up'     { $brUp }
+                'down'   { $brDown }
+                default  { $brMuted }
+            }
             $g.DrawString($block.Entry.tag, $fTag, $tagBrush, [single]$px, [single]$ty, $fmt)
             $ty += $fTag.Height + $H * 0.003
 
-            $g.DrawString($block.Entry.title, $fEntryName, $brTitle, [single]$px, [single]$ty, $fmt)
-            $ty += $fEntryName.Height + $H * 0.004
+            foreach ($line in $block.Name) {
+                $g.DrawString($line, $fEntryName, $brTitle, [single]$px, [single]$ty, $fmt)
+                $ty += $fEntryName.Height + $descGap
+            }
+            $ty = $ty - $descGap + $H * 0.004
 
             if ($block.Desc.Count -gt 0) {
                 foreach ($line in $block.Desc) {
@@ -578,7 +597,12 @@ if ($hasTools) {
                 $ty = $ty - $descGap + $H * 0.004
             }
 
-            $g.DrawString($block.Entry.meta, $fEntryMeta, $brSoft, [single]$px, [single]$ty, $fmt)
+            $metaBrush = switch ($block.Entry.tagStyle) {
+                'up'    { $brUp }
+                'down'  { $brDown }
+                default { $brSoft }
+            }
+            $g.DrawString($block.Entry.meta, $fEntryMeta, $metaBrush, [single]$px, [single]$ty, $fmt)
             $ty += $fEntryMeta.Height + $entryGap
         }
 

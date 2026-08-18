@@ -46,6 +46,37 @@ const DEFAULTS = {
   // Leave empty to infer interests from session history. Otherwise a list of
   // strings or { label, query } objects used as GitHub search queries.
   interests: [],
+  // Latest arXiv submissions. Shown on every setup, single screen included.
+  arxiv: {
+    enabled: true,
+    count: 4,
+    categories: ['cs.AI', 'cs.LG', 'cs.CL']
+  },
+  // Live prices. Unlocks with a second screen.
+  markets: {
+    enabled: true,
+    symbols: [
+      { symbol: 'GC=F', label: 'Gold' },
+      { symbol: 'BTC-USD', label: 'Bitcoin' },
+      { symbol: '^GSPC', label: 'S&P 500' },
+      { symbol: 'INR=X', label: 'USD/INR' }
+    ]
+  },
+  // Forecast. Unlocks with a second screen. Set `city` - IP lookup often
+  // reports the far end of a VPN instead of where you are.
+  weather: {
+    enabled: true,
+    city: '',
+    latitude: null,
+    longitude: null,
+    units: 'metric'   // metric | imperial
+  },
+  // Top Hacker News stories. Unlocks with a third screen.
+  filler: {
+    enabled: true,
+    count: 5,
+    source: 'hackerNews'   // hackerNews | onThisDay
+  },
   // Multi-monitor behaviour.
   screens: {
     enabled: true,

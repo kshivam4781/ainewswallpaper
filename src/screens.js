@@ -71,53 +71,64 @@ async function applyWallpaper(imagePath, monitorId) {
 /**
  * Decides what each screen shows.
  *
- * One screen keeps everything together. With more, the content splits up so no
- * screen has to squeeze: headlines get their own display, and the panels spread
- * across the rest. Extra screens beyond the available content show a second
- * page of headlines rather than a duplicate.
+ * One screen keeps everything together, but only two panels fit legibly beside
+ * the headlines, so the rest rotate through the second slot. With more screens
+ * the panels get homes of their own, at most two per screen.
  *
- * @returns {Array<{monitor: object, role: string, index: number}>}
+ * @param blocks ordered panel headings that actually have content
+ * @returns Array<{monitor, role, index, blocks?}>
  */
-function planScreens(monitors, { hasRepos = false, hasBrief = false, mode = 'auto', assign = [] } = {}) {
+function planScreens(monitors, { blocks = [], mode = 'auto', assign = [], seed = 0 } = {}) {
   const screens = monitors.length ? monitors : [{ id: '', width: 0, height: 0, primary: true }];
 
   if (mode === 'single' || screens.length === 1) {
-    return [{ monitor: screens[0], role: 'all', index: 0 }];
+    return [{ monitor: screens[0], role: 'all', index: 0, blocks: pickForOneScreen(blocks, seed) }];
   }
   if (mode === 'mirror') {
-    return screens.map((monitor, index) => ({ monitor, role: 'all', index }));
+    return screens.map((monitor, index) => ({
+      monitor, role: 'all', index, blocks: pickForOneScreen(blocks, seed)
+    }));
   }
 
-  // Explicit override, e.g. ["news", "today", "tools"].
   if (assign.length) {
-    return screens.map((monitor, index) => ({ monitor, role: assign[index] || 'news', index }));
+    return screens.map((monitor, index) => ({
+      monitor, role: assign[index] || 'news', index, blocks: [assign[index]]
+    }));
   }
 
-  const extras = [];
-  if (hasRepos) extras.push('tools');
-  if (hasBrief) extras.push('today');
-
-  // Nothing but headlines to show: page them across the screens.
-  if (extras.length === 0) {
-    return screens.map((monitor, index) => ({ monitor, role: index === 0 ? 'news' : 'news-more', index }));
-  }
-
-  const plan = [{ monitor: screens[0], role: 'news', index: 0 }];
+  const plan = [{ monitor: screens[0], role: 'news', index: 0, blocks: [] }];
   const rest = screens.slice(1);
+  if (rest.length === 0 || blocks.length === 0) return plan;
 
-  if (rest.length >= extras.length) {
-    extras.forEach((role, i) => plan.push({ monitor: rest[i], role, index: i + 1 }));
-    rest.slice(extras.length).forEach((monitor, i) => {
-      plan.push({ monitor, role: 'news-more', index: extras.length + 1 + i });
-    });
-  } else {
-    // Fewer screens than blocks: the second screen carries all the panels.
-    rest.forEach((monitor, i) => {
-      plan.push({ monitor, role: i === 0 ? 'panels' : 'news-more', index: i + 1 });
-    });
+  // Two panels per screen is the most that stays legible. When there are more
+  // panels than slots, rotate the surplus hourly instead of cramming them in -
+  // the highest-priority one stays pinned so the layout keeps its shape.
+  const capacity = rest.length * 2;
+  let show = blocks;
+  if (blocks.length > capacity) {
+    const pool = blocks.slice(1);
+    const offset = ((seed % pool.length) + pool.length) % pool.length;
+    show = blocks.slice(0, 1).concat(pool.slice(offset), pool.slice(0, offset)).slice(0, capacity);
   }
+
+  const perScreen = Math.min(2, Math.ceil(show.length / rest.length));
+  const queue = show.slice();
+  rest.forEach((monitor, i) => {
+    const mine = queue.splice(0, perScreen);
+    plan.push({ monitor, role: mine.length ? 'panels' : 'news-more', index: i + 1, blocks: mine });
+  });
 
   return plan;
 }
 
-module.exports = { detectScreens, applyWallpaper, planScreens, CACHE_PATH };
+/**
+ * The two panels a single screen can carry. The first slot is fixed so the
+ * layout stays familiar; the second rotates hourly so everything gets seen.
+ */
+function pickForOneScreen(blocks, seed = 0) {
+  if (blocks.length <= 2) return blocks.slice();
+  const rest = blocks.slice(1);
+  return [blocks[0], rest[((seed % rest.length) + rest.length) % rest.length]];
+}
+
+module.exports = { detectScreens, applyWallpaper, planScreens, pickForOneScreen, CACHE_PATH };

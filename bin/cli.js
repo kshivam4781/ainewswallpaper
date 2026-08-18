@@ -110,6 +110,7 @@ Commands
   headlines           Print the headlines that would be used
   tools               Show the inferred interests and the repos that would show
   screens             Show the detected displays and what each will show
+  sources             Print papers, markets, weather and Hacker News right now
   log                 Show the last lines of the activity log
   help                Show this message
 
@@ -325,27 +326,86 @@ ${displays.monitors.length} display(s) detected` +
     console.log(`  ${i + 1}. ${m.width}x${m.height} at (${m.x},${m.y})${m.primary ? '  [primary]' : ''}`);
   });
 
-  // What the planner would do given what is actually available right now.
-  const hasRepos = config.tools.enabled !== false;
+  // Which panels would have content, in the same priority order a refresh uses.
+  const n = displays.monitors.length;
   const hasBrief = google.isConnected();
+  const blocks = [];
+  if (hasBrief) blocks.push('TODAY');
+  if (config.tools.enabled !== false) blocks.push('OPEN SOURCE');
+  if ((config.arxiv || {}).enabled !== false) blocks.push('PAPERS');
+  if (n >= 2) {
+    if ((config.markets || {}).enabled !== false) blocks.push('MARKETS');
+    if ((config.weather || {}).enabled !== false) blocks.push('WEATHER');
+  }
+  if (n >= 3 && (config.filler || {}).enabled !== false) {
+    blocks.push((config.filler || {}).source === 'onThisDay' ? 'ON THIS DAY' : 'HACKER NEWS');
+  }
+
   const plan = planScreens(displays.monitors, {
-    hasRepos, hasBrief, mode: config.screens.mode, assign: config.screens.assign
+    blocks,
+    mode: config.screens.mode,
+    assign: config.screens.assign,
+    seed: Math.floor(Date.now() / 3600000)
   });
 
   console.log(`
 Plan (mode: ${config.screens.mode}):`);
-  plan.forEach((entry) => {
-    console.log(`  Screen ${entry.index + 1}  ->  ${entry.role.padEnd(10)} ${ROLE_TEXT[entry.role] || ''}`);
+  plan.forEach((entry, i) => {
+    const what = entry.blocks && entry.blocks.length ? entry.blocks.join(' + ') : 'AI headlines';
+    console.log(`  Screen ${i + 1}  ${entry.role.padEnd(10)} ${what}`);
   });
 
-  if (!hasBrief) console.log('\nGoogle is not connected, so there is no calendar/mail screen to assign.');
-  if (displays.monitors.length === 1) {
-    console.log('\nWith one display everything shares the screen. Attach another and');
-    console.log('  the content spreads out automatically on the next refresh.');
+  if (n === 1) {
+    console.log('\nOne display: headlines plus two panels, and the second slot');
+    console.log('  rotates hourly so everything gets seen.');
+    console.log('  MARKETS and WEATHER unlock at 2 screens, HACKER NEWS at 3.');
   }
-  if (!displays.perMonitor && displays.monitors.length > 1) {
+  if (!hasBrief) console.log('\nGoogle is not connected, so there is no TODAY panel.');
+  if (!displays.perMonitor && n > 1) {
     console.log('\nWindows is not exposing per-monitor wallpapers here, so a single');
     console.log('  image is used for the whole desktop.');
+  }
+}
+
+async function cmdSources() {
+  const { collectExtras } = require('../src/sources');
+  const config = loadConfig();
+  const filler = (config.filler || {}).source === 'onThisDay' ? 'onThisDay' : 'hackerNews';
+
+  console.log('\nFetching every source (ignoring screen gating)...');
+  const r = await collectExtras(config, ['papers', 'markets', 'weather', filler]);
+
+  if (r.papers) {
+    console.log('\nPAPERS  (arxiv)');
+    r.papers.forEach((p) => {
+      console.log(`  [${p.category}] ${p.title}`);
+      console.log(`      ${p.authors}`);
+    });
+  }
+  if (r.markets) {
+    console.log('\nMARKETS');
+    r.markets.forEach((m) => {
+      const move = m.changePct == null ? '' : `${m.changePct >= 0 ? '+' : ''}${m.changePct.toFixed(2)}%`;
+      console.log(`  ${m.label.padEnd(10)} ${m.priceText.padStart(10)}  ${move}`);
+    });
+  }
+  if (r.weather) {
+    const w = r.weather;
+    console.log(`\nWEATHER  ${w.place}${w.guessed ? '  (guessed from your IP - set weather.city)' : ''}`);
+    console.log(`  now ${w.now}${w.unit}, ${w.text}, feels ${w.feelsLike}${w.unit}`);
+    w.days.forEach((d) => console.log(`  ${d.date}  ${d.low}-${d.high}${w.unit}  ${d.text}`));
+  }
+  if (r.hackerNews) {
+    console.log('\nHACKER NEWS');
+    r.hackerNews.forEach((h) => console.log(`  ${String(h.score).padStart(4)}  ${h.title}  (${h.site})`));
+  }
+  if (r.onThisDay) {
+    console.log('\nON THIS DAY');
+    r.onThisDay.forEach((e) => console.log(`  ${e.year}: ${e.text}`));
+  }
+  if (r.warnings.length) {
+    console.log('\nProblems:');
+    r.warnings.forEach((w) => console.log(`  ${w}`));
   }
 }
 
@@ -512,6 +572,7 @@ async function main() {
       case 'brief': case 'mail': case 'agenda': await cmdBrief(flags); break;
       case 'quote': case 'quotes': cmdQuote(flags); break;
       case 'screens': case 'displays': case 'monitors': await cmdScreens(flags); break;
+      case 'sources': case 'extras': await cmdSources(); break;
       case 'watch': await cmdWatch(flags); break;
       case 'start': case 'install': await cmdStart(flags); break;
       case 'stop': case 'uninstall': await cmdStop(); break;

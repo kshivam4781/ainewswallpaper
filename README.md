@@ -98,6 +98,7 @@ ai-news-wallpaper stop
 | `headlines` | Print the headlines that would be used |
 | `tools` | Show the inferred interests and the repos that would be shown |
 | `screens` | Show the detected displays and what each will show |
+| `sources` | Print papers, markets, weather and Hacker News right now |
 | `log` | Show recent activity |
 
 ## Options
@@ -283,6 +284,66 @@ under `google` in `config.json`:
 
 Set `alwaysShowMail` to `true` to show unread mail around the clock, or
 `enabled` to `false` to keep the account linked but hide the panel.
+
+## More panels
+
+Everything below is fetched the same way as the news: public endpoints, **no API
+key, no account, no AI**. Preview them all at any time:
+
+```bash
+ai-news-wallpaper sources
+```
+
+| Panel | Source | Appears |
+| --- | --- | --- |
+| **PAPERS** | arXiv (`cs.AI`, `cs.LG`, `cs.CL`) | always, any screen count |
+| **MARKETS** | Yahoo Finance, Stooq fallback | 2+ screens |
+| **WEATHER** | Open-Meteo | 2+ screens |
+| **HACKER NEWS** | HN Firebase API | 3+ screens |
+
+A single display has room for the headlines plus **two** panels, so the second
+slot rotates hourly and everything gets seen. Add screens and the panels get
+homes of their own rather than competing for one.
+
+### Markets
+
+Gains and losses are coloured, not just labelled. Pick your own tickers with any
+Yahoo Finance symbol:
+
+```json
+{
+  "markets": {
+    "symbols": [
+      { "symbol": "GC=F", "label": "Gold" },
+      { "symbol": "SI=F", "label": "Silver" },
+      { "symbol": "^NSEI", "label": "Nifty 50" }
+    ]
+  }
+}
+```
+
+Yahoo's chart endpoint is undocumented, so [Stooq](https://stooq.com) stands in
+if it changes or rate-limits.
+
+### Weather
+
+**Set your city.** IP geolocation routinely reports the far end of a VPN — the
+panel says `(from your IP)` when it had to guess, so you can tell:
+
+```json
+{ "weather": { "city": "Mumbai", "units": "metric" } }
+```
+
+`units` takes `metric` or `imperial`. Coordinates work too via `latitude` /
+`longitude`.
+
+### Filler
+
+Hacker News by default. `{ "filler": { "source": "onThisDay" } }` swaps in
+Wikipedia's events for today's date — be warned that they skew heavily toward
+disasters and atrocities, which reads badly next to a motivational quote.
+
+Any panel can be switched off with `"enabled": false` in its config block.
 
 ## Multiple monitors
 
