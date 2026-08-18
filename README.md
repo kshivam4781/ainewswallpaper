@@ -327,15 +327,34 @@ if it changes or rate-limits.
 
 ### Weather
 
-**Set your city.** IP geolocation routinely reports the far end of a VPN — the
-panel says `(from your IP)` when it had to guess, so you can tell:
+The installer asks for your city. Press Enter there and it works it out from
+your system timezone, which is right far more often than an IP lookup — people
+set their clock even behind a VPN. The panel labels a guess as `(from your IP)`
+or shows the detected place, so you always know which you are looking at.
 
-```json
-{ "weather": { "city": "Mumbai", "units": "metric" } }
+Change it any time:
+
+```bash
+ai-news-wallpaper config --city "Mumbai" --save
 ```
 
-`units` takes `metric` or `imperial`. Coordinates work too via `latitude` /
-`longitude`.
+Clear it with `--city ""` to go back to auto-detection. `--units metric` or
+`imperial`. Coordinates work too via `latitude` / `longitude` in `config.json`.
+
+Location is resolved in this order, stopping at the first that works:
+
+1. `latitude` / `longitude` if set
+2. `city` if set
+3. your system timezone (`Asia/Kolkata` → Kolkata) — no third-party lookup
+4. IP geolocation, as a last resort
+
+For scripted or unattended installs:
+
+```powershell
+$env:AINW_CITY = 'Mumbai'; irm https://kshivam4781.github.io/ainewswallpaper/install.ps1 | iex
+```
+
+`$env:AINW_SILENT = '1'` suppresses the prompt entirely.
 
 ### Filler
 

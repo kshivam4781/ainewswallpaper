@@ -9,6 +9,8 @@
     Options (set before piping to iex):
         $env:AINW_VERSION = 'v1.0.0'   install a specific tag
         $env:AINW_NO_START = '1'       install without starting the schedule
+        $env:AINW_CITY = 'Mumbai'      set the weather city without being asked
+        $env:AINW_SILENT = '1'         never prompt (for scripted installs)
 #>
 
 $ErrorActionPreference = 'Stop'
@@ -94,6 +96,26 @@ if ($userPath -notlike "*$Dest*") {
     Write-Ok 'Added (open a new terminal to use the command there).'
 }
 $env:Path = "$env:Path;$Dest"
+
+# --- Ask what we cannot detect reliably ---------------------------------------
+# The weather panel guesses from your timezone otherwise, which is usually
+# right but worth confirming while we have your attention.
+$city = $env:AINW_CITY
+if (-not $city -and [Environment]::UserInteractive -and $env:AINW_SILENT -ne '1') {
+    Write-Host ""
+    Write-Host "  Which city should the weather panel use?" -ForegroundColor Cyan
+    Write-Host "  Press Enter to detect it from your timezone." -ForegroundColor DarkGray
+    try {
+        $city = (Read-Host "  City").Trim()
+    } catch {
+        $city = ''   # non-interactive host: fall back to auto-detection
+    }
+}
+
+if ($city) {
+    & $Exe config --city "$city" --save | Out-Null
+    Write-Ok "Weather set to $city."
+}
 
 # --- Start -------------------------------------------------------------------
 if ($env:AINW_NO_START -eq '1') {

@@ -197,6 +197,19 @@ async function resolveLocation(settings) {
     throw new Error(`could not find "${settings.city}"`);
   }
 
+  // The system timezone names a city ("Asia/Kolkata"), needs no third-party
+  // lookup, and is usually right even behind a VPN.
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    const guess = zone.split('/').pop().replace(/_/g, ' ');
+    if (guess) {
+      const body = await getJson(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(guess)}&count=1&language=en&format=json`);
+      const hit = body && body.results && body.results[0];
+      if (hit) return { latitude: hit.latitude, longitude: hit.longitude, name: hit.name, guessed: true };
+    }
+  } catch { /* fall through to the IP lookup */ }
+
   const ip = await getJson('https://ipapi.co/json/');
   if (!Number.isFinite(ip.latitude)) throw new Error('could not locate you');
   return { latitude: ip.latitude, longitude: ip.longitude, name: ip.city || 'Here', guessed: true };

@@ -33,7 +33,9 @@ function parseArgs(argv) {
     let value;
     if (eq !== -1) {
       value = token.slice(eq + 1);
-    } else if (rest[i + 1] && !rest[i + 1].startsWith('--')) {
+    // Test for presence, not truthiness: `--city ""` is a real empty value,
+    // and treating it as a boolean makes a setting impossible to clear.
+    } else if (rest[i + 1] !== undefined && !rest[i + 1].startsWith('--')) {
       value = rest[++i];
     } else {
       value = true;
@@ -59,6 +61,12 @@ function overridesFrom(flags) {
   if (flags['no-screens'] === true) screens.enabled = false;
   if (Object.keys(screens).length) out.screens = screens;
 
+  const weather = {};
+  if (typeof flags.city === 'string') weather.city = flags.city;
+  if (typeof flags.units === 'string') weather.units = flags.units;
+  if (flags['no-weather'] === true) weather.enabled = false;
+  if (Object.keys(weather).length) out.weather = weather;
+
   const quotes = {};
   if (flags['no-quote'] === true) quotes.enabled = false;
   if (flags.quote === true) quotes.enabled = true;
@@ -81,6 +89,10 @@ function validate(overrides) {
   }
   if (overrides.align && !['left', 'center', 'right'].includes(overrides.align)) {
     throw new Error(`Unknown align "${overrides.align}". Use left, center or right.`);
+  }
+  if (overrides.weather && overrides.weather.units &&
+      !['metric', 'imperial'].includes(overrides.weather.units)) {
+    throw new Error(`Unknown units "${overrides.weather.units}". Use metric or imperial.`);
   }
   if (overrides.screens && overrides.screens.mode &&
       !['auto', 'mirror', 'single'].includes(overrides.screens.mode)) {
@@ -125,6 +137,8 @@ Options
   --for-you <n>       Repos matched to your work from session history (default 2)
   --no-tools          Hide the open-source panel entirely
   --rescan            With "tools", rebuild the interest profile from scratch
+  --city <name>       City for the weather panel (with: config --save)
+  --units <system>    metric | imperial
   --screens <mode>    auto | mirror | single - how to use multiple displays
   --no-quote          Hide the quote band and give the space back to the columns
   --rotate <when>     daily | hourly - how often the quote changes
@@ -269,10 +283,25 @@ async function cmdPreview(flags) {
   printHeadlines(result.items.slice(0, result.shown));
 }
 
+/**
+ * Merges one level deep, so saving `--city` keeps the rest of the weather
+ * block instead of replacing it wholesale.
+ */
+function mergeConfig(base, overrides) {
+  const out = { ...base };
+  for (const [key, value] of Object.entries(overrides)) {
+    const isPlainObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
+    out[key] = isPlainObject(value) && isPlainObject(base[key])
+      ? { ...base[key], ...value }
+      : value;
+  }
+  return out;
+}
+
 async function cmdConfig(flags) {
   const overrides = overridesFrom(flags);
   validate(overrides);
-  const config = { ...loadConfig(), ...overrides };
+  const config = mergeConfig(loadConfig(), overrides);
 
   if (Object.keys(overrides).length && flags.save) {
     saveConfig(config);
